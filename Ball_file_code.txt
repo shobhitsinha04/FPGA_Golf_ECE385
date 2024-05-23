@@ -1,0 +1,195 @@
+//-------------------------------------------------------------------------
+//    Ball.sv                                                            --
+//    Viral Mehta                                                        --
+//    Spring 2005                                                        --
+//                                                                       --
+//    Modified by Stephen Kempf     03-01-2006                           --
+//                                  03-12-2007                           --
+//    Translated by Joe Meng        07-07-2013                           --
+//    Modified by Zuofu Cheng       08-19-2023                           --
+//    Modified by Satvik Yellanki   12-17-2023                           --
+//    Fall 2024 Distribution                                             --
+//                                                                       --
+//    For use with ECE 385 USB + HDMI Lab                                --
+//    UIUC ECE Department                                                --
+//-------------------------------------------------------------------------
+
+
+module  ball 
+( 
+    input  logic        Reset, 
+    input  logic        frame_clk,
+    input  logic signed [9:0]  ball_vx,
+    input  logic signed [9:0]  ball_vy,
+    //input  logic [7:0]  keycode,
+    input logic flag_motion_intial,
+    
+//    output logic flag_motion_inwater,
+//    output logic flag_motion_insand,
+//    output logic flag_motion_ingrass,
+//    output logic flag_motion_inhole,
+    output logic flag_stop,
+    output logic [9:0]  BallX, 
+    output logic [9:0]  BallY, 
+    output logic [9:0]  BallS,
+    
+    output logic signed [9:0] Ball_X_Motion_next_out,
+    output logic signed [9:0] Ball_Y_Motion_next_out
+    
+);
+    
+
+	 
+    parameter [9:0] Ball_X_Center=60;  // Center position on the X axis ---- should come from control unit
+    parameter [9:0] Ball_Y_Center=360;  // Center position on the Y axis ---- should come from control unit
+    parameter [9:0] Ball_X_Min=0;       // Leftmost point on the X axis
+    parameter [9:0] Ball_X_Max=639;     // Rightmost point on the X axis
+    parameter [9:0] Ball_Y_Min=0;       // Topmost point on the Y axis
+    parameter [9:0] Ball_Y_Max=479;     // Bottommost point on the Y axis
+    parameter [9:0] Ball_X_Step=1;      // Step size on the X axis
+    parameter [9:0] Ball_Y_Step=1;      // Step size on the Y axis
+    
+    parameter [9:0] Hole_X = 605;  // Example X position of the hole
+    parameter [9:0] Hole_Y = 50;  // Example Y position of the hole
+    parameter [9:0] Radius_Low_Friction = 50;  // Distance from hole where friction is lowest
+    parameter [9:0] Radius_High_Friction = 150; // Distance to start high friction1
+    logic [9:0] distance_to_hole;
+    logic [2:0] friction_factor;
+
+
+    logic signed [9:0] Ball_X_Motion;
+    logic signed [9:0] Ball_X_Motion_next;
+    logic signed [9:0] Ball_Y_Motion;
+    logic signed [9:0] Ball_Y_Motion_next;
+
+    logic signed [9:0] Ball_X_next;
+    logic signed [9:0] Ball_Y_next;
+    
+    logic signed [9:0] current_vx;
+    logic signed [9:0] current_vy;
+    assign BallS = 5;  // default ball size
+   
+   always_comb 
+   begin
+   
+        if (flag_motion_intial) 
+            begin
+                Ball_X_Motion_next = ball_vx;
+                Ball_Y_Motion_next = ball_vy;
+            end 
+        
+        else
+          begin 
+                if (Ball_X_Motion > 0)
+                    begin
+                        Ball_X_Motion_next = Ball_X_Motion - friction_factor;
+                        if (Ball_X_Motion_next < 0) 
+                            Ball_X_Motion_next = 0; // Prevent negative velocity
+                    end
+                    
+                else if (Ball_X_Motion < 0)
+                    begin
+                        Ball_X_Motion_next = Ball_X_Motion + friction_factor;
+                        if (Ball_X_Motion_next > 0) 
+                            Ball_X_Motion_next = 0;
+                    end
+                    
+                else 
+                    begin
+                        Ball_X_Motion_next = 0; // Velocity is zero, remains zero
+                    end
+                 
+                if (Ball_Y_Motion > 0) 
+                   begin
+                        Ball_Y_Motion_next = Ball_Y_Motion - friction_factor;
+                        if (Ball_Y_Motion_next <= 0) 
+                            Ball_Y_Motion_next = 0; // Prevent negative velocity
+                    end
+                 
+                else if (Ball_Y_Motion < 0) 
+                     begin
+                        Ball_Y_Motion_next = Ball_Y_Motion + friction_factor;
+                        if (Ball_Y_Motion_next > 0) 
+                            Ball_Y_Motion_next = 0; // Prevent negative velocity
+                     end
+                     
+                else 
+                     begin
+                        Ball_Y_Motion_next = 0; // Velocity is zero, remains zero
+                     end   
+             
+          end
+        
+        flag_stop = !(Ball_X_Motion) & !(Ball_Y_Motion);
+
+        
+    end
+
+    // Update the actual position and motion values
+    always_ff @(posedge frame_clk) begin
+        if (Reset) 
+        begin 
+            BallX <= Ball_X_Center;
+            BallY <= Ball_Y_Center;
+            Ball_X_Motion <= 0;
+            Ball_Y_Motion <= 0;
+        end 
+        else 
+        begin
+            // Update current motion to the next motion calculated
+            if (BallY + Ball_Y_Motion + BallS > Ball_Y_Max) 
+            begin
+                BallY <= Ball_Y_Max;
+                Ball_Y_Motion <= -Ball_Y_Motion_next;
+            end
+            
+            else if (BallY + Ball_Y_Motion - BallS < 10) // < 6
+            begin
+                BallY <= 10;
+                Ball_Y_Motion <= -Ball_Y_Motion_next;
+            end
+            
+            else 
+            begin
+                 BallY <= BallY + Ball_Y_Motion;
+                 Ball_Y_Motion <= Ball_Y_Motion_next;
+            end
+            
+            if (BallX + Ball_X_Motion + BallS > Ball_X_Max)
+            begin
+                BallX <= Ball_X_Max;
+                Ball_X_Motion <= -Ball_X_Motion_next;
+            end
+            
+            else if (BallX + Ball_X_Motion - BallS < Ball_X_Min)
+            begin
+                BallX <= Ball_X_Min;
+                Ball_X_Motion <= -Ball_X_Motion_next;
+            end
+            
+            else
+            begin
+                BallX <= BallX + Ball_X_Motion;
+                Ball_X_Motion <= Ball_X_Motion_next;
+            end
+            
+            
+        end
+    end
+
+
+    
+assign Ball_X_Motion_next_out = Ball_X_Motion_next;
+assign Ball_Y_Motion_next_out = Ball_Y_Motion_next;
+//assign friction_factor = 1;
+
+always_comb
+begin
+    if ( (BallX + 5 > 470 && BallX + 5 < 639) && (BallY + 5 > 0 && BallY + 5 < 170) )
+        friction_factor = 2;
+    else
+        friction_factor = 1;
+end
+endmodule
+
+

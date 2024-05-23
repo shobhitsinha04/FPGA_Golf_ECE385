@@ -1,0 +1,674 @@
+//-------------------------------------------------------------------------
+//    Color_Mapper.sv                                                    --
+//    Stephen Kempf                                                      --
+//    3-1-06                                                             --
+//                                                                       --
+//    Modified by David Kesler  07-16-2008                               --
+//    Translated by Joe Meng    07-07-2013                               --
+//    Modified by Zuofu Cheng   08-19-2023                               --
+//                                                                       --
+//    Fall 2023 Distribution                                             --
+//                                                                       --
+//    For use with ECE 385 USB + HDMI                                    --
+//    University of Illinois ECE Department                              --
+//-------------------------------------------------------------------------
+
+
+module  color_mapper ( input  logic [9:0] BallX, BallY, DrawX, DrawY, Ball_size,
+                       input logic clk,
+                       input logic rst1,
+                       input logic [2:0] pow_count,
+                       output logic [3:0]  Red, Green, Blue,
+                       input logic [3:0] backred, backgreen, backblue,
+                       input logic [3:0] pow1_red, pow1_green, pow1_blue,
+                       input logic [3:0] pow2_red, pow2_green, pow2_blue,
+                       input logic [3:0] pow3_red, pow3_green, pow3_blue,
+                       input logic [3:0] word_red, word_green, word_blue,
+                       //input logic [3:0] numbers_red, numbers_green, numbers_blue,
+                       input logic [3:0] start_red, start_green, start_blue,
+                       input logic [3:0] end_red,  end_green, end_blue,
+                       input logic [3:0] lost_red, lost_green, lost_blue,
+                       input logic [4:0] hex_out,
+                       input logic [3:0] score,
+                       
+                       input logic vga_clk_col,
+                       input logic vde_col,
+                       
+                      // input logic [2:0] hex_screen,
+                       
+                       output logic flag_motion_inwater,
+                       output logic flag_motion_insand,
+                       output logic flag_motion_ingrass,
+                       output logic flag_motion_inhole  
+                       );
+    
+    logic ball_on;
+    logic ball2_on;
+	logic box_on;
+	logic arrow_on;
+	
+	logic score_word_on;
+	logic score_number_1_on;
+	logic score_number_2_on;
+	logic [6:0] start1_x;
+	logic [6:0] start2_x;
+	
+	assign start1_x = 87;
+	assign start2_x = 107;
+	
+	logic water1_on;
+	logic water2_on;
+	logic sand1_on;
+	logic sand2_on;
+	logic hole_on;
+	
+	logic [3:0] zero_red, zero_green, zero_blue, one_red, one_green, one_blue;
+	logic [3:0] zero_red2, zero_green2, zero_blue2, one_red2, one_green2, one_blue2;
+	logic [3:0] two_red, two_green, two_blue, three_red, three_green, three_blue;
+	logic [3:0] four_red, four_green, four_blue, five_red, five_green, five_blue;
+	logic [3:0] six_red, six_green, six_blue, seven_red, seven_green, seven_blue;
+	logic [3:0] eight_red, eight_green, eight_blue, nine_red, nine_green, nine_blue;
+    logic [3:0] numbers_red, numbers_green, numbers_blue;
+    logic [3:0] arrow_red, arrow_green, arrow_blue;
+	  
+    int DistX, DistY, Size;
+    assign DistX = DrawX - BallX;
+    assign DistY = DrawY - BallY;
+    assign Size = Ball_size;
+  
+    always_comb
+    begin:Ball_on_proc
+        if ( (DistX*DistX + DistY*DistY) <= (Size * Size) )
+            begin
+                ball_on = 1'b1;
+                box_on = 1'b0;
+                score_word_on = 1'b0;
+                score_number_1_on = 1'b0;
+                score_number_2_on = 1'b0;
+                arrow_on = 1'b0;
+            end
+            
+        else if ( DrawX >= 5 && DrawX <= 25 && DrawY >= 10 && DrawY <=160 )
+            begin
+                box_on = 1'b1;
+                ball_on = 1'b0;
+                score_word_on = 1'b0;
+                score_number_1_on = 1'b0;
+                score_number_2_on = 1'b0;
+                arrow_on = 1'b0;
+            end
+            
+        else if ( DrawX >= 35 && DrawX <= 85 && DrawY >= 0 && DrawY <=20 )
+            begin
+                box_on = 1'b0;
+                ball_on = 1'b0;
+                score_word_on = 1'b1;
+                score_number_1_on = 1'b0;
+                score_number_2_on = 1'b0;
+                arrow_on = 1'b0;
+            end 
+            
+        else if ( DrawX >= 87 && DrawX <= 107 && DrawY >= 0 && DrawY <=20 )
+            begin
+                box_on = 1'b0;
+                ball_on = 1'b0;
+                score_word_on = 1'b0;
+                score_number_1_on = 1'b1;
+                score_number_2_on = 1'b0;
+                arrow_on = 1'b0;
+            end
+            
+        else if ( DrawX >= 107 && DrawX <= 127 && DrawY >= 0 && DrawY <=20 )
+            begin
+                box_on = 1'b0;
+                ball_on = 1'b0;
+                score_word_on = 1'b0;
+                score_number_1_on = 1'b0;
+                score_number_2_on = 1'b1;
+                arrow_on = 1'b0;
+            end 
+             
+        else if ( hex_out == 18 || hex_out == 19 || hex_out == 20)
+          begin
+                ball_on = 1'b0;
+                box_on = 1'b0;
+                score_word_on = 1'b0;
+                score_number_1_on = 1'b0;
+                score_number_2_on = 1'b0;
+                arrow_on = 1'b0;
+          end
+        
+        else if ( DrawX >= 130 && DrawX <= 230 && DrawY >= 370 && DrawY <= 470 )
+          begin
+                ball_on = 1'b0;
+                box_on = 1'b0;
+                score_word_on = 1'b0;
+                score_number_1_on = 1'b0;
+                score_number_2_on = 1'b0;
+                arrow_on = 1'b1;
+          end
+         
+        else
+            begin
+                ball_on = 1'b0;
+                box_on = 1'b0;
+                score_word_on = 1'b0;
+                score_number_1_on = 1'b0;
+                score_number_2_on = 1'b0;
+                arrow_on = 1'b0;
+            end
+     end 
+
+    always_comb
+    begin:RGB_Display
+    
+     if(hex_out == 18)
+            begin
+            
+             if( ( DrawX > 80 && DrawX < 560) && ( DrawY > 60 && DrawY < 420) )
+             begin
+                Red = start_red;
+                Green = start_green;
+                Blue = start_blue;
+             end
+             
+             else
+             begin
+                Red = 4'h0;
+                Green = 4'h0;
+                Blue = 4'h0;
+             end
+            end
+            
+       else if(hex_out == 19)
+            begin
+            
+             if( ( DrawX > 80 && DrawX < 560) && ( DrawY > 60 && DrawY < 420) )
+               begin
+                Red = end_red;
+                Green = end_green;
+                Blue = end_blue;
+               end
+              
+              else
+               begin
+                Red = 4'h0;
+                Green = 4'h0;
+                Blue = 4'h0;
+               end
+            end
+            
+       else if (hex_out == 20)
+            begin
+            
+              if( ( DrawX > 80 && DrawX < 560) && ( DrawY > 60 && DrawY < 420) )
+               begin
+                Red = end_red;
+                Green = end_green;
+                Blue = end_blue;
+               end
+               
+              else
+               begin
+                Red = 4'h0;
+                Green = 4'h0;
+                Blue = 4'h0;
+               end
+               
+            end
+     
+     else if ((ball_on == 1'b1)) 
+        begin 
+            Red = 4'hf;
+            Green = 4'hf;
+            Blue = 4'hf;
+        end
+        
+     else if (score_word_on == 1'b1)
+        begin
+            if (word_red == 4'hF && word_green == 4'hE && word_blue == 4'hE)
+                begin
+                    Red = word_red;
+                    Green = word_green;
+                    Blue = word_blue;
+                end
+            else
+                begin
+                    Red = backred;
+                    Green = backgreen;
+                    Blue = backblue;
+                end
+        end
+        
+    else if (score_number_1_on == 1'b1)
+     begin
+        if ( score / 10 == 0)
+            begin
+                numbers_red = zero_red;
+                numbers_green = zero_green;
+                numbers_blue = zero_blue;
+            end
+        else 
+            begin
+                numbers_red = one_red;
+                numbers_green = one_green;
+                numbers_blue = one_blue;
+            end 
+        
+        
+       if (numbers_red == 4'hF && numbers_green == 4'hE && numbers_blue == 4'hF)
+             begin
+                    Red = numbers_red;
+                    Green = numbers_green;
+                    Blue = numbers_blue;
+              end
+       else
+            begin
+                    Red = backred;
+                    Green = backgreen;
+                    Blue = backblue;
+            end
+            
+     end
+    
+    else if (score_number_2_on == 1'b1)
+        begin
+        
+          if ( score % 10 == 0)
+            begin
+                numbers_red = zero_red2;
+                numbers_green = zero_green2;
+                numbers_blue = zero_blue2;
+            end
+            
+          else if ( score % 10 == 1)
+            begin
+                numbers_red = one_red2;
+                numbers_green = one_green2;
+                numbers_blue = one_blue2;
+            end
+            
+          else if ( score % 10 == 2)
+            begin
+                numbers_red = two_red;
+                numbers_green = two_green;
+                numbers_blue = two_blue;
+            end
+            
+          else if ( score % 10 == 3)
+            begin
+                numbers_red = three_red;
+                numbers_green = three_green;
+                numbers_blue = three_blue;
+            end
+            
+          else if ( score % 10 == 4)
+            begin
+                numbers_red = four_red;
+                numbers_green = four_green;
+                numbers_blue = four_blue;
+            end
+            
+          else if ( score % 10 == 5)
+            begin
+                numbers_red = five_red;
+                numbers_green = five_green;
+                numbers_blue = five_blue;
+            end
+            
+          else if ( score % 10 == 6)
+            begin
+                numbers_red = six_red;
+                numbers_green = six_green;
+                numbers_blue = six_blue;
+            end
+            
+          else if ( score % 10 == 7)
+            begin
+                numbers_red = seven_red;
+                numbers_green = seven_green;
+                numbers_blue = seven_blue;
+            end
+            
+          else if ( score % 10 == 8)
+            begin
+                numbers_red = eight_red;
+                numbers_green = eight_green;
+                numbers_blue = eight_blue;
+            end
+            
+          else if ( score % 10 == 9)
+            begin
+                numbers_red = nine_red;
+                numbers_green = nine_green;
+                numbers_blue = nine_blue;
+            end
+            
+          else
+            begin
+                numbers_red = nine_red;
+                numbers_green = nine_green;
+                numbers_blue = nine_blue; 
+            end
+            
+       if (numbers_red == 4'hF && numbers_green == 4'hE && numbers_blue == 4'hF)
+             begin
+                    Red = numbers_red;
+                    Green = numbers_green;
+                    Blue = numbers_blue;
+              end
+       else
+            begin
+                    Red = backred;
+                    Green = backgreen;
+                    Blue = backblue;
+            end   
+            
+            
+        end
+    
+    
+     else if ( box_on == 1'b1 ) 
+        begin
+        
+            if( pow_count == 1)
+            begin
+                Red = pow1_red;
+                Green = pow1_green;
+                Blue = pow1_blue;
+            end
+            
+            else if(pow_count == 2)
+            begin
+                Red = pow2_red;
+                Green = pow2_green;
+                Blue = pow2_blue;
+            end
+            
+            else
+            begin
+                Red = pow3_red;
+                Green = pow3_green;
+                Blue = pow3_blue;
+            end
+            
+         end  
+      
+      else if ( arrow_on == 1'b1 )
+        begin
+         if( arrow_red == 3 && arrow_green == 3 && arrow_blue == 3)
+          begin
+            Red = arrow_red ;
+            Green = arrow_green;
+            Blue = arrow_blue;
+          end
+          
+         else
+          begin
+           Red = backred;
+           Green = backgreen;
+           Blue = backblue;
+          end
+        end
+                     
+       else 
+        begin 
+            Red = backred; 
+            Green = backgreen;
+            Blue = backblue;
+        end   
+           
+    end 
+
+    
+always_ff @(posedge clk) 
+begin
+
+   flag_motion_inwater <= 1'b0;
+   flag_motion_insand <= 1'b0;
+   flag_motion_inhole <= 1'b0;
+   flag_motion_ingrass <= 1'b1;
+
+//if(hex_out == 8 || hex_out == 16)
+//  begin
+
+    if ( ( (BallX + Ball_size) >= 27 ) && ( (BallX + Ball_size) <= 215) && ( (BallY - Ball_size) >= 35) && ( (BallY - Ball_size) <= 145) )
+        begin
+            flag_motion_inwater <= 1'b1;
+            flag_motion_insand <= 1'b0;
+            flag_motion_inhole <= 1'b0;
+            flag_motion_ingrass <= 1'b0;
+        end
+        
+    else if( ( (BallX + Ball_size) >= 27) && ( (BallX + Ball_size) <= 105 ) && ( (BallY - Ball_size)  >= 145 ) && ( (BallY - Ball_size) <= 210) )
+       begin
+            flag_motion_inwater <= 1'b1;
+            flag_motion_insand <= 1'b0;
+            flag_motion_inhole <= 1'b0;
+            flag_motion_ingrass <= 1'b0;
+        end
+    
+    else if ( ( (BallX + Ball_size) >= 315) && ( (BallX + Ball_size) <= 380 ) && ( (BallY - Ball_size)  >= 10 ) && ( (BallY - Ball_size) <= 90) )
+        begin
+            flag_motion_inwater <= 1'b0;
+            flag_motion_insand <= 1'b1;
+            flag_motion_inhole <= 1'b0;
+            flag_motion_ingrass <= 1'b0;
+        end
+        
+    else if ( ( (BallX + Ball_size) >= 435) && ( (BallX + Ball_size) <= 525 ) && ( (BallY - Ball_size)  >= 210 ) && ( (BallY - Ball_size) <= 255) )
+        begin
+            flag_motion_inwater <= 1'b0;
+            flag_motion_insand <= 1'b1;
+            flag_motion_inhole <= 1'b0;
+            flag_motion_ingrass <= 1'b0;
+        end
+    
+    else if ( ( (BallX + Ball_size) >= 435) && ( (BallX + Ball_size) <= 505 ) && ( (BallY - Ball_size)  >= 255 ) && ( (BallY - Ball_size) <= 320) )
+        begin
+            flag_motion_inwater <= 1'b0;
+            flag_motion_insand <= 1'b1;
+            flag_motion_inhole <= 1'b0;
+            flag_motion_ingrass <= 1'b0;
+        end
+        
+    else if ( ( (BallX + Ball_size) >= 540) && ( (BallX + Ball_size) <= 565 ) && ( (BallY - Ball_size)  >= 85 ) && ( (BallY - Ball_size) <= 105) )
+        begin
+            flag_motion_inwater <= 1'b0;
+            flag_motion_insand <= 1'b0;
+            flag_motion_inhole <= 1'b1;
+            flag_motion_ingrass <= 1'b0;
+        end
+    
+   //end
+    
+end
+
+zero_example zero_inst (
+            .vga_clk(vga_clk_col),
+            .DrawX(DrawX),
+            .DrawY(DrawY),
+            .blank(vde_col),
+            .red(zero_red),
+            .green(zero_green),
+            .blue(zero_blue),
+            .start_x(start1_x)
+    );
+
+zero_example zero_inst2 (
+            .vga_clk(vga_clk_col),
+            .DrawX(DrawX),
+            .DrawY(DrawY),
+            .blank(vde_col),
+            .red(zero_red2),
+            .green(zero_green2),
+            .blue(zero_blue2),
+            .start_x(start2_x)
+    );
+
+one_example one_inst (
+            .vga_clk(vga_clk_col),
+            .DrawX(DrawX),
+            .DrawY(DrawY),
+            .blank(vde_col),
+            .red(one_red),
+            .green(one_green),
+            .blue(one_blue),
+            .start_x(start1_x)
+    );
+
+one_example one_inst2 (
+            .vga_clk(vga_clk_col),
+            .DrawX(DrawX),
+            .DrawY(DrawY),
+            .blank(vde_col),
+            .red(one_red2),
+            .green(one_green2),
+            .blue(one_blue2),
+            .start_x(start2_x)
+    );
+    
+two_new_example two_inst (
+            .vga_clk(vga_clk_col),
+            .DrawX(DrawX),
+            .DrawY(DrawY),
+            .blank(vde_col),
+            .red(two_red),
+            .green(two_green),
+            .blue(two_blue)
+    );
+    
+three_example three_inst (
+            .vga_clk(vga_clk_col),
+            .DrawX(DrawX),
+            .DrawY(DrawY),
+            .blank(vde_col),
+            .red(three_red),
+            .green(three_green),
+            .blue(three_blue)
+    );
+    
+four_example four_inst (
+            .vga_clk(vga_clk_col),
+            .DrawX(DrawX),
+            .DrawY(DrawY),
+            .blank(vde_col),
+            .red(four_red),
+            .green(four_green),
+            .blue(four_blue)
+    );
+    
+five_example five_inst (
+            .vga_clk(vga_clk_col),
+            .DrawX(DrawX),
+            .DrawY(DrawY),
+            .blank(vde_col),
+            .red(five_red),
+            .green(five_green),
+            .blue(five_blue)
+    );
+ 
+six_new_example six_inst (
+            .vga_clk(vga_clk_col),
+            .DrawX(DrawX),
+            .DrawY(DrawY),
+            .blank(vde_col),
+            .red(six_red),
+            .green(six_green),
+            .blue(six_blue)
+    );
+    
+seven_example seven_inst (
+            .vga_clk(vga_clk_col),
+            .DrawX(DrawX),
+            .DrawY(DrawY),
+            .blank(vde_col),
+            .red(seven_red),
+            .green(seven_green),
+            .blue(seven_blue)
+    );
+    
+ eight_example eight_inst (
+            .vga_clk(vga_clk_col),
+            .DrawX(DrawX),
+            .DrawY(DrawY),
+            .blank(vde_col),
+            .red(eight_red),
+            .green(eight_green),
+            .blue(eight_blue)
+    );
+    
+    
+  nine_new_example nine_inst (
+            .vga_clk(vga_clk_col),
+            .DrawX(DrawX),
+            .DrawY(DrawY),
+            .blank(vde_col),
+            .red(nine_red),
+            .green(nine_green),
+            .blue(nine_blue)
+    );
+    
+    
+   arrow_final_example arrow_inst (
+            .vga_clk(vga_clk_col),
+            .DrawX(DrawX),
+            .DrawY(DrawY),
+            .blank(vde_col),
+            .red(arrow_red),
+            .green(arrow_green),
+            .blue(arrow_blue)            
+    );
+
+endmodule
+
+
+
+//always_comb
+//begin
+
+//    if(ball2_on == 1'b1)
+//        begin
+        
+//            if (backred == 4'h9 && backgreen == 4'hD && backblue == 4'hE) 
+//                begin
+//                  flag_motion_inwater = 1'b1;
+//                  flag_motion_insand = 1'b0;
+//                  flag_motion_inhole = 1'b0;
+//                  flag_motion_ingrass = 1'b0; 
+//                end
+                
+//             else if (backred == 4'hF && backgreen == 4'hE && backblue == 4'h9)
+//                begin
+//                    flag_motion_inwater = 1'b0;
+//                    flag_motion_insand = 1'b1;
+//                    flag_motion_inhole = 1'b0;
+//                    flag_motion_ingrass = 1'b0;
+//                end
+                
+//             else if (backred == 4'h5 && backgreen == 4'h8 && backblue == 4'h3) 
+//                begin
+//                    flag_motion_inwater = 1'b0;
+//                    flag_motion_insand = 1'b0;
+//                    flag_motion_inhole = 1'b1;
+//                    flag_motion_ingrass = 1'b0;
+//                end
+                
+//             else 
+//                begin
+//                    flag_motion_inwater = 1'b0;
+//                    flag_motion_insand = 1'b0;
+//                    flag_motion_inhole = 1'b0;
+//                    flag_motion_ingrass = 1'b1;
+//                end 
+//        end
+        
+//    else
+//        begin
+//            flag_motion_inwater = 1'b0;
+//            flag_motion_insand = 1'b0;
+//            flag_motion_inhole = 1'b0;
+//            flag_motion_ingrass = 1'b1;
+//        end
+        
+//end

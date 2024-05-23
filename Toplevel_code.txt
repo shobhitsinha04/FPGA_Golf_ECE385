@@ -1,0 +1,377 @@
+//-------------------------------------------------------------------------
+//    mb_usb_hdmi_top.sv                                                 --
+//    Zuofu Cheng                                                        --
+//    2-29-24                                                            --
+//                                                                       --
+//                                                                       --
+//    Spring 2024 Distribution                                           --
+//                                                                       --
+//    For use with ECE 385 USB + HDMI                                    --
+//    University of Illinois ECE Department                              --
+//-------------------------------------------------------------------------
+
+
+module mb_usb_hdmi_top(
+    input logic Clk,
+    input logic reset_rtl_0,
+    
+    //USB signals
+    input logic [0:0] gpio_usb_int_tri_i,
+    output logic gpio_usb_rst_tri_o,
+    input logic usb_spi_miso,
+    output logic usb_spi_mosi,
+    output logic usb_spi_sclk,
+    output logic usb_spi_ss,
+    
+    //UART
+    input logic uart_rtl_0_rxd,
+    output logic uart_rtl_0_txd,
+    
+    //HDMI
+    output logic hdmi_tmds_clk_n,
+    output logic hdmi_tmds_clk_p,
+    output logic [2:0]hdmi_tmds_data_n,
+    output logic [2:0]hdmi_tmds_data_p,
+        
+    //HEX displays
+    output logic [7:0] hex_segA,
+    output logic [3:0] hex_gridA,
+    output logic [7:0] hex_segB,
+    output logic [3:0] hex_gridB
+);
+    
+    logic [31:0] keycode0_gpio, keycode1_gpio;
+    logic clk_25MHz, clk_125MHz, clk, clk_100MHz;
+    logic locked;
+    logic [9:0] drawX, drawY, ballxsig, ballysig, ballsizesig;
+
+    logic hsync, vsync, vde;
+    logic [3:0] red, green, blue;
+    logic reset_ah;
+    
+    logic flag_motion_insand_t;
+    logic flag_motion_ingrass_t;
+    logic flag_motion_inhole_t;
+    logic flag_motion_inwater_t;
+    logic flag_motion_intial;
+    logic [9:0] Ball_VX_t;
+    logic [9:0] Ball_VY_t;
+    
+    assign reset_ah = reset_rtl_0;
+    logic [4:0] hex_out_t;
+    logic [3:0] hex_out_vx_t;
+    logic [3:0] hex_out_vy_t;
+    logic Reset_t;
+    logic flap_stop_t;
+    logic [9:0] Ball_X_Motion_next_out_t;
+    logic [9:0] Ball_Y_Motion_next_out_t;
+    logic [3:0] hex_direction_t;
+    logic [2:0] hex_power_t;
+    logic [3:0] hex_score_t;
+    logic [7:0] deb_keycode;
+    logic deb_available;
+    
+    logic [3:0] backred_t;
+    logic [3:0] backgreen_t;
+    logic [3:0] backblue_t;
+    
+    logic [3:0] red2_t;
+    logic [3:0] green2_t;
+    logic [3:0] blue2_t;
+    
+    logic [3:0] red3_t;
+    logic [3:0] green3_t;
+    logic [3:0] blue3_t;
+    
+    logic [3:0] red4_t;
+    logic [3:0] green4_t;
+    logic [3:0] blue4_t;
+    
+    logic [3:0] red5_t;
+    logic [3:0] green5_t;
+    logic [3:0] blue5_t;
+    
+    logic [3:0] red6_t;
+    logic [3:0] green6_t;
+    logic [3:0] blue6_t;
+    
+    logic [3:0] red7_t;
+    logic [3:0] green7_t;
+    logic [3:0] blue7_t;
+    
+//    logic [3:0] red8_t;
+//    logic [3:0] green8_t;
+//    logic [3:0] blue8_t;
+    
+    logic [3:0] red9_t;
+    logic [3:0] green9_t;
+    logic [3:0] blue9_t;
+    
+    logic [2:0] hex_screen_t;
+    //Keycode HEX drivers
+    hex_driver HexA (
+        .clk(Clk),
+        .reset(reset_ah),
+        .in({hex_power_t,hex_direction_t,hex_score_t,hex_score_t}),
+        .hex_seg(hex_segA),
+        .hex_grid(hex_gridA)
+    );
+    
+    hex_driver HexB (
+        .clk(Clk),
+        .reset(reset_ah),
+        .in({flag_motion_insand_t,flag_motion_ingrass_t , flag_motion_inwater_t,hex_out_t[3:0]}),
+        .hex_seg(hex_segB),
+        .hex_grid(hex_gridB)
+    );
+    
+    mb_block mb_block_i (
+        .clk_100MHz(Clk),
+        .gpio_usb_int_tri_i(gpio_usb_int_tri_i),
+        .gpio_usb_keycode_0_tri_o(keycode0_gpio),
+        .gpio_usb_keycode_1_tri_o(keycode1_gpio),
+        .gpio_usb_rst_tri_o(gpio_usb_rst_tri_o),
+        .reset_rtl_0(~reset_ah), //Block designs expect active low reset, all other modules are active high
+        .uart_rtl_0_rxd(uart_rtl_0_rxd),
+        .uart_rtl_0_txd(uart_rtl_0_txd),
+        .usb_spi_miso(usb_spi_miso),
+        .usb_spi_mosi(usb_spi_mosi),
+        .usb_spi_sclk(usb_spi_sclk),
+        .usb_spi_ss(usb_spi_ss)
+    );
+        
+    //clock wizard configured with a 1x and 5x clock for HDMI
+    clk_wiz_0 clk_wiz (
+        .clk_out1(clk_25MHz),
+        .clk_out2(clk_125MHz),
+        .reset(reset_ah),
+        .locked(locked),
+        .clk_in1(Clk)
+    );
+    
+    //VGA Sync signal generator
+    vga_controller vga (
+        .pixel_clk(clk_25MHz),
+        .reset(reset_ah),
+        .hs(hsync),
+        .vs(vsync),
+        .active_nblank(vde),
+        .drawX(drawX),
+        .drawY(drawY)
+    );    
+
+    //Real Digital VGA to HDMI converter
+    hdmi_tx_0 vga_to_hdmi (
+        //Clocking and Reset
+        .pix_clk(clk_25MHz),
+        .pix_clkx5(clk_125MHz),
+        .pix_clk_locked(locked),
+        //Reset is active LOW
+        .rst(reset_ah),
+        //Color and Sync Signals
+        .red(red),
+        .green(green),
+        .blue(blue),
+        .hsync(hsync),
+        .vsync(vsync),
+        .vde(vde),
+        
+        //aux Data (unused)
+        .aux0_din(4'b0),
+        .aux1_din(4'b0),
+        .aux2_din(4'b0),
+        .ade(1'b0),
+        
+        //Differential outputs
+        .TMDS_CLK_P(hdmi_tmds_clk_p),          
+        .TMDS_CLK_N(hdmi_tmds_clk_n),          
+        .TMDS_DATA_P(hdmi_tmds_data_p),         
+        .TMDS_DATA_N(hdmi_tmds_data_n)          
+    );
+
+    
+    //Ball Module
+    ball ball_instance(
+        .Reset(Reset_t),  // worked with reset_ah
+        .frame_clk(vsync),   // try vsync 
+        .ball_vx(Ball_VX_t),
+        .ball_vy(Ball_VY_t),                    //Figure out what this should be so that the ball will move
+        .flag_motion_intial(flag_motion_intial),
+        .flag_stop(flag_stop_t),
+        .BallX(ballxsig),
+        .BallY(ballysig),
+        .BallS(ballsizesig),
+        .Ball_X_Motion_next_out(Ball_X_Motion_next_out_t),
+        .Ball_Y_Motion_next_out(Ball_Y_Motion_next_out_t)
+    );
+    
+    //Color Mapper Module   
+    color_mapper color_instance(
+        .clk(vsync),
+        .rst1(reset_ah),
+        .BallX(ballxsig),
+        .BallY(ballysig),
+        .DrawX(drawX),
+        .DrawY(drawY),
+        .Ball_size(ballsizesig),
+        .Red(red),
+        .Green(green),
+        .Blue(blue),
+        .backred(backred_t),
+        .backgreen(backgreen_t),
+        .backblue(backblue_t),
+        .flag_motion_insand(flag_motion_insand_t),
+        .flag_motion_ingrass(flag_motion_ingrass_t),
+        .flag_motion_inwater(flag_motion_inwater_t),
+        .flag_motion_inhole(flag_motion_inhole_t),
+        .pow_count(hex_power_t),
+        .pow1_red(red2_t),
+        .pow1_green(green2_t),
+        .pow1_blue(blue2_t),
+        .pow2_red(red3_t),
+        .pow2_green(green3_t),
+        .pow2_blue(blue3_t),
+        .pow3_red(red4_t),
+        .pow3_green(green4_t),
+        .pow3_blue(blue4_t),
+        .word_red(red5_t),
+        .word_green(green5_t),
+        .word_blue(blue5_t),
+//        .numbers_red(red6_t),
+//        .numbers_green(green6_t),
+//        .numbers_blue(blue6_t),
+        .start_red(red7_t),
+        .start_green(green7_t),
+        .start_blue(blue7_t),
+        .lost_red(red8_t),
+        .lost_green(green8_t),
+        .lost_blue(blue8_t),
+        .end_red(red9_t),
+        .end_green(green9_t),
+        .end_blue(blue9_t),
+        .hex_out(hex_out_t),
+        .vga_clk_col(clk_25MHz),
+        .vde_col(vde),
+        .score(hex_score_t)
+    );
+    
+    control_unit control (
+                            .Clk(vsync),  
+                            .reset_ah(reset_ah),
+                            .keycode(keycode0_gpio[7:0]),
+                            .flag_motion_insand_in(flag_motion_insand_t), //flag_motion_insand_t
+                            .flag_motion_ingrass_in(flag_motion_ingrass_t), //flag_motion_ingrass_t
+                            .flag_motion_inwater_in(flag_motion_inwater_t), //flag_motion_inwater_t
+                            .flag_motion_inhole_in(flag_motion_inhole_t), //
+                            .flag_stop_in(flag_stop_t),
+                            .Ball_VX_reg(Ball_VX_t),
+                            .Ball_VY_reg(Ball_VY_t),
+                            .reset_out(Reset_t),
+                            .flag_motion_intial_out_reg(flag_motion_intial),
+                            .hex_out(hex_out_t),
+                            .hex_out_vx(hex_out_vx_t),
+                            .hex_out_vy(hex_out_vy_t),
+                            .hex_direction(hex_direction_t),
+                            .hex_power(hex_power_t),
+                            .hex_score(hex_score_t)
+                           // .hex_screen(hex_screen_t)
+                            );
+    
+    golf_map2_example map1_inst (
+            .vga_clk(clk_25MHz),
+            .DrawX(drawX),
+            .DrawY(drawY),
+            .red1(backred_t),
+            .green1(backgreen_t),
+            .blue1(backblue_t),
+            .blank(vde)
+       );
+        
+        
+    power_l3_example pow3_inst  (
+            .vga_clk(clk_25MHz),
+            .DrawX(drawX),
+            .DrawY(drawY),
+            .blank(vde),
+            .red4(red4_t),
+            .green4(green4_t),
+            .blue4(blue4_t)
+         );
+     
+     power_l2_example pow2_inst  (
+            .vga_clk(clk_25MHz),
+            .DrawX(drawX),
+            .DrawY(drawY),
+            .blank(vde),
+            .red3(red3_t),
+            .green3(green3_t),
+            .blue3(blue3_t)
+         );  
+     
+     power_l1_example pow1_inst  (
+            .vga_clk(clk_25MHz),
+            .DrawX(drawX),
+            .DrawY(drawY),
+            .blank(vde),
+            .red2(red2_t),
+            .green2(green2_t),
+            .blue2(blue2_t)
+         );
+        
+    score_example score_word_inst (
+            .vga_clk(clk_25MHz),
+            .DrawX(drawX),
+            .DrawY(drawY),
+            .blank(vde),
+ //for number .score(hex_score_t),
+            .red5(red5_t),
+            .green5(green5_t),
+            .blue5(blue5_t)
+    );
+    
+//     score_numbers_new_example score_number_inst (
+//            .vga_clk(clk_25MHz),
+//            .DrawX(drawX),
+//            .DrawY(drawY),
+//            .blank(vde),
+//            .score(hex_score_t),
+//            .red6(red6_t),
+//            .green6(green6_t),
+//            .blue6(blue6_t)
+//    );
+    
+    
+    start_screen_new_example start_screen_inst (
+            .vga_clk(clk_25MHz),
+            .DrawX(drawX),
+            .DrawY(drawY),
+            .blank(vde),
+            .red7(red7_t),
+            .green7(green7_t),
+            .blue7(blue7_t)
+    );
+    
+    end_screen_example end_screen_inst (
+            .vga_clk(clk_25MHz),
+            .DrawX(drawX),
+            .DrawY(drawY),
+            .blank(vde),
+            .red9(red9_t),
+            .green9(green9_t),
+            .blue9(blue9_t)
+     );
+     
+//     lost_screen_example lost_screen_inst (
+//            .vga_clk(clk_25MHz),
+//            .DrawX(drawX),
+//            .DrawY(drawY),
+//            .blank(vde),
+//            .red8(red8_t),
+//            .green8(green8_t),
+//            .blue8(blue8_t)
+     
+//     );
+    
+    
+    
+endmodule

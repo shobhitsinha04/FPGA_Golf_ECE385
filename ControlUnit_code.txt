@@ -1,0 +1,1290 @@
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 12.02.2024 22:50:45
+// Design Name: 
+// Module Name: control_unit
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
+
+module control_unit( input logic Clk,
+                     input logic reset_ah,
+                     input  logic [7:0]  keycode,
+                     input logic flag_motion_insand_in,
+                     input logic flag_motion_ingrass_in,
+                     input logic flag_motion_inwater_in,
+                     input logic flag_motion_inhole_in,
+                     input logic flag_stop_in,
+                     
+                     output logic signed [9:0] Ball_VX_reg,
+                     output logic signed [9:0] Ball_VY_reg,
+                     output logic reset_out,
+                     output logic flag_motion_intial_out_reg,
+                     
+                     output logic [4:0] hex_out,
+                     output logic [3:0] hex_out_vx,
+                     output logic [3:0] hex_out_vy,
+                     output logic [3:0] hex_direction,
+                     output logic [2:0] hex_power,
+                     //output logic [2:0] hex_screen,
+                     output logic [3:0] hex_score
+     );
+                     
+                     
+enum logic [5:0] {
+		s_start_screen,
+		s_start_screen_wait,
+		s_restart,
+		s_restart_wait, 
+		
+		s_start_pos,
+		s_start_pos_wait,
+		s_start_pos_hold1,
+		s_start_pos_hold2,
+		s_start_pos_inc,
+		s_start_pos_dec,
+		
+		s_start_power,
+		s_start_power_wait,
+		s_start_power_hold1,
+		s_start_power_hold2,
+		s_start_power_inc,
+		s_start_power_dec,
+		
+		s_motion1,
+		s_motion1_wait, 
+		
+		s_wait_for_motion_to_stop_buffer,
+		s_wait_for_motion_to_stop,
+		
+		s_start_sand_pos,
+		s_start_sand_pos_wait,		
+		s_start_sand_pos_hold1,
+		s_start_sand_pos_hold2,
+		s_start_sand_pos_inc,
+		s_start_sand_pos_dec,
+
+		s_start_sand_power,
+		s_start_sand_power_wait,
+		s_start_sand_power_hold1,
+		s_start_sand_power_hold2,
+		s_start_sand_power_inc,
+		s_start_sand_power_dec,
+		
+		s_start_sand_motion,
+		s_start_sand_motion_wait,
+		
+		s_check_buffer, 
+		s_check,
+		
+		s_done,
+		s_end_screen,
+		s_end_screen_wait,
+		s_lost_screen
+	}  curr_state , next_state; 
+
+logic reset;   // for sending to ball
+logic reset_ah_in;  // from microblaze
+logic signed [3:0] direction_counter;
+logic [2:0] power_counter;
+logic [3:0] score_counter;
+logic flag_motion_intial;
+logic flag_motion_inwater;
+logic flag_motion_insand;
+logic flag_motion_ingrass;
+logic flag_motion_inhole;
+logic flag_stop;
+
+logic [3:0] direction_counter_reg;
+logic [2:0] power_counter_reg;
+logic [3:0] score_counter_reg;
+logic signed [9:0] Ball_VX;
+logic signed [9:0] Ball_VY;
+
+assign reset_ah_in = reset_ah;
+
+ always_ff @(posedge Clk or posedge reset_ah_in )
+    begin
+        if(reset_ah_in)
+            curr_state <= s_start_screen;
+        else
+            curr_state <= next_state;
+    end
+ 
+ always_ff @(posedge Clk)
+    begin
+        if (hex_out == 7 || hex_out == 8 || hex_out == 15)
+        begin
+            Ball_VX_reg <= Ball_VX;
+            Ball_VY_reg <= Ball_VY;
+            flag_motion_intial_out_reg <= flag_motion_intial;
+        end
+    end
+    
+ always_ff @(posedge Clk or posedge reset_ah_in)
+  begin
+  
+    if(reset_ah_in)     // ask how to reset these registers for taking 2nd shot
+    begin
+        direction_counter_reg <= 6;
+        power_counter_reg <= 1;
+        score_counter_reg <= 0;
+    end
+    else 
+    begin
+    
+        if(hex_out == 7 || hex_out == 15 || hex_out == 18)
+        begin
+            score_counter_reg <= score_counter;
+        end
+    
+        if(hex_out == 2 || hex_out == 3 || hex_out == 10 || hex_out == 11)
+        begin
+            direction_counter_reg <= direction_counter;
+        end
+        
+        if(hex_out == 5 || hex_out == 6 || hex_out == 13 || hex_out == 14)
+        begin
+            power_counter_reg <= power_counter;
+        end
+        
+        if (hex_out == 8)
+        begin
+            direction_counter_reg <= 6;
+            power_counter_reg <= 1;
+        end
+    end
+  end
+  
+
+  
+	always_comb // for signals 
+	begin
+
+    reset = 0;
+    
+		unique case (curr_state) 
+			
+			s_restart: 
+			begin
+			    hex_out = 0;
+			    
+                reset = 1;
+                direction_counter = 6;
+                power_counter = 1;
+                score_counter = 0;
+                Ball_VX = 0;
+                Ball_VY = 0;
+                flag_motion_intial = 0;
+			end
+            
+            s_start_pos:
+            begin
+                hex_out = 1;
+                
+                reset = 0;
+                Ball_VX = 0;
+                Ball_VY = 0;
+                flag_motion_intial = 0;
+                power_counter = 1;
+                direction_counter = 6;
+                score_counter = 0;
+            end
+            
+            s_start_pos_inc:
+            begin
+                hex_out = 2;
+                
+                reset = 0;
+                Ball_VX = 0;
+                Ball_VY = 0;
+                flag_motion_intial = 0;
+                power_counter = 1;
+                score_counter = 0;
+                
+                direction_counter = direction_counter_reg + 1;
+                
+                if (direction_counter_reg == 12)
+                    direction_counter = 12;
+            end
+            
+            s_start_pos_dec:
+            begin
+                hex_out = 3;
+                
+                reset = 0;
+                Ball_VX = 0;
+                Ball_VY = 0;
+                flag_motion_intial = 0;
+                power_counter = 1;
+                score_counter = 0;
+                
+                direction_counter = direction_counter_reg - 1;
+                
+                if (direction_counter < 0)    // CHANGE 1 to fix direction counter.
+                    direction_counter = 0;
+            end
+            
+            s_start_power:
+            begin
+                hex_out = 4;
+                
+                reset = 0;
+                Ball_VX = 0;
+                Ball_VY = 0;
+                flag_motion_intial = 0;
+                direction_counter = 6;
+                power_counter = 1;
+                score_counter = 0;
+            end
+            
+           s_start_power_inc:
+            begin
+                hex_out = 5;
+                
+                reset = 0;
+                Ball_VX = 0;
+                Ball_VY = 0;
+                flag_motion_intial = 0;
+                direction_counter = 6;
+                score_counter = 0;
+                               
+                power_counter = power_counter_reg + 1;
+                
+                if (power_counter > 3)
+                    power_counter = 3;
+            end
+            
+            s_start_power_dec:
+            begin
+                hex_out = 6;
+                
+                reset = 0;
+                Ball_VX = 0;
+                Ball_VY = 0;
+                flag_motion_intial = 0;
+                direction_counter = 6;
+                score_counter = 0;
+                
+                power_counter = power_counter_reg - 1;
+                
+                if (power_counter < 1)
+                    power_counter = 1;
+            end
+            
+            s_motion1:
+            begin
+                hex_out = 7;
+                
+                reset = 0;
+                flag_motion_intial = 1'b1;
+                direction_counter = 6;
+                power_counter = 1;
+                
+                score_counter = score_counter_reg + 1;
+                
+                if(power_counter_reg == 1 && direction_counter_reg == 6 ) // make all counter_reg
+                begin 
+                    Ball_VX = 15;
+                    Ball_VY = 0;
+                end
+                
+                else if (power_counter_reg == 1 && direction_counter_reg == 7 )
+                begin
+                    Ball_VX = 15;
+                    Ball_VY = 3;
+                end
+                
+                else if (power_counter_reg == 1 && direction_counter_reg == 5 )
+                begin
+                    Ball_VX = 15;
+                    Ball_VY = -3;
+                end
+                
+                else if (power_counter_reg == 1 && direction_counter_reg == 8 )
+                begin
+                    Ball_VX = 12;
+                    Ball_VY = 9;
+                end
+                
+                else if (power_counter_reg == 1 && direction_counter_reg == 4 )
+                begin
+                    Ball_VX = 12;
+                    Ball_VY = -9;
+                end
+                
+                else if (power_counter_reg == 1 && direction_counter_reg == 9 )
+                begin
+                    Ball_VX = 12;
+                    Ball_VY = 12;
+                end
+                
+                else if (power_counter_reg == 1 && direction_counter_reg == 3 )
+                begin
+                    Ball_VX = 12;
+                    Ball_VY = -12;
+                end
+                
+                else if (power_counter_reg == 1 && direction_counter_reg == 10 )
+                begin
+                    Ball_VX = 9;
+                    Ball_VY = 12;
+                end
+                
+                else if (power_counter_reg == 1 && direction_counter_reg == 2 )
+                begin
+                    Ball_VX = 9;
+                    Ball_VY = -12;
+                end
+                
+                else if (power_counter_reg == 1 && direction_counter_reg == 11 )
+                begin
+                    Ball_VX = 3;
+                    Ball_VY = 15;
+                end
+                
+                else if (power_counter_reg == 1 && direction_counter_reg == 1 )
+                begin
+                    Ball_VX = 3;
+                    Ball_VY = -15;
+                end
+                
+                else if (power_counter_reg == 1 && direction_counter_reg == 12 )
+                begin
+                    Ball_VX = 0;
+                    Ball_VY = 15;
+                end
+                
+                else if (power_counter_reg == 1 && direction_counter_reg == 0 )
+                begin
+                    Ball_VX = 0;
+                    Ball_VY = -15;
+                end
+                
+                //
+                // power 2
+                //
+                
+               else if(power_counter_reg == 2 && direction_counter_reg == 6 )
+                begin 
+                    Ball_VX = 21;
+                    Ball_VY = 0;
+                end
+                
+                else if (power_counter_reg == 2 && direction_counter_reg == 7 )
+                begin
+                    Ball_VX = 21;
+                    Ball_VY = 6;
+                end
+                
+                else if (power_counter_reg == 2 && direction_counter_reg == 5 )
+                begin
+                    Ball_VX = 21;
+                    Ball_VY = -6;
+                end
+                
+                else if (power_counter_reg == 2 && direction_counter_reg == 8 )
+                begin
+                    Ball_VX = 18;
+                    Ball_VY = 12;
+                end
+                
+                else if (power_counter_reg == 2 && direction_counter_reg == 4 )
+                begin
+                    Ball_VX = 18;
+                    Ball_VY = -12;
+                end
+                
+                else if (power_counter_reg == 2 && direction_counter_reg == 9 )
+                begin
+                    Ball_VX = 15;
+                    Ball_VY = 15;
+                end
+                
+                else if (power_counter_reg == 2 && direction_counter_reg == 3 )
+                begin
+                    Ball_VX = 15;
+                    Ball_VY = -15;
+                end
+                
+                else if (power_counter_reg == 2 && direction_counter_reg == 10 )
+                begin
+                    Ball_VX = 12;
+                    Ball_VY = 18;
+                end
+                
+                else if (power_counter_reg == 2 && direction_counter_reg == 2 )
+                begin
+                    Ball_VX = 12;
+                    Ball_VY = -18;
+                end
+                
+                else if (power_counter_reg == 2 && direction_counter_reg == 11 )
+                begin
+                    Ball_VX = 6;
+                    Ball_VY = 21;
+                end
+                
+                else if (power_counter_reg == 2 && direction_counter_reg == 1 )
+                begin
+                    Ball_VX = 6;
+                    Ball_VY = -21;
+                end
+                
+                else if (power_counter_reg == 2 && direction_counter_reg == 12 )
+                begin
+                    Ball_VX = 0;
+                    Ball_VY = 21;
+                end
+                
+                else if (power_counter_reg == 2 && direction_counter_reg == 0 )
+                begin
+                    Ball_VX = 0;
+                    Ball_VY = -21;
+                end
+                
+                //
+                // power 3
+                //
+                
+                else if(power_counter_reg == 3 && direction_counter_reg == 6 )
+                begin 
+                    Ball_VX = 30;
+                    Ball_VY = 0;
+                end
+                
+                else if (power_counter_reg == 3 && direction_counter_reg == 7 )
+                begin
+                    Ball_VX = 30;
+                    Ball_VY = 9;
+                end
+                
+                else if (power_counter_reg == 3 && direction_counter_reg == 5 )
+                begin
+                    Ball_VX = 30;
+                    Ball_VY = -9;
+                end
+                
+                else if (power_counter_reg == 3 && direction_counter_reg == 8 )
+                begin
+                    Ball_VX = 27;
+                    Ball_VY = 15;
+                end
+                
+                else if (power_counter_reg == 3 && direction_counter_reg == 4 )
+                begin
+                    Ball_VX = 27;
+                    Ball_VY = -15;
+                end
+                
+                else if (power_counter_reg == 3 && direction_counter_reg == 9 )
+                begin
+                    Ball_VX = 21;
+                    Ball_VY = 21;
+                end
+                
+                else if (power_counter_reg == 3 && direction_counter_reg == 3 )
+                begin
+                    Ball_VX = 21;
+                    Ball_VY = -21;
+                end
+                
+                else if (power_counter_reg == 3 && direction_counter_reg == 10 )
+                begin
+                    Ball_VX = 15;
+                    Ball_VY = 27;
+                end
+                
+                else if (power_counter_reg == 3 && direction_counter_reg == 2 )
+                begin
+                    Ball_VX = 15;
+                    Ball_VY = -27;
+                end
+                
+                else if (power_counter_reg == 3 && direction_counter_reg == 11 )
+                begin
+                    Ball_VX = 9;
+                    Ball_VY = 30;
+                end
+                
+                else if (power_counter_reg == 3 && direction_counter_reg == 1 )
+                begin
+                    Ball_VX = 9;
+                    Ball_VY = -30;
+                end
+                
+                else if (power_counter_reg == 3 && direction_counter_reg == 12 )
+                begin
+                    Ball_VX = 0;
+                    Ball_VY = 30;
+                end
+                
+                else if (power_counter_reg == 3 && direction_counter_reg == 0 )
+                begin
+                    Ball_VX = 0;
+                    Ball_VY = -30;
+                end
+                
+                else
+                begin
+                    Ball_VX = 0;
+                    Ball_VY = 5;
+                end
+    
+            end
+            
+            s_wait_for_motion_to_stop_buffer:
+            begin
+                reset = 0;
+                flag_motion_intial = 0;
+                direction_counter = 6;
+                power_counter = 1;
+                score_counter = 0;
+                Ball_VX = 0;    // to remove inferred latches
+                Ball_VY = 0;  
+            end
+            
+            s_wait_for_motion_to_stop:
+            begin
+                hex_out = 8;
+                
+                reset = 0;
+                flag_motion_intial = 0;
+                direction_counter = 6;
+                power_counter = 1;
+                score_counter = 0;
+                Ball_VX = 0;    // to remove inferred latches
+                Ball_VY = 0;    // to remove latch
+            end
+            
+            
+            s_start_sand_pos:
+            begin
+                hex_out = 9;
+                
+                reset = 0;
+                Ball_VX = 0;
+                Ball_VY = 0;
+                flag_motion_intial = 0;
+                power_counter = 1;
+                direction_counter = 6;
+                score_counter = 0;
+            end
+            
+            s_start_sand_pos_inc:
+            begin
+                hex_out = 10;
+                
+                reset = 0;
+                Ball_VX = 0;
+                Ball_VY = 0;
+                flag_motion_intial = 0;
+                power_counter = 1;
+                score_counter = 0;
+                
+                direction_counter = direction_counter_reg + 1;
+                
+                if (direction_counter > 12) 
+                    direction_counter = 12;
+            end
+            
+            s_start_sand_pos_dec:
+            begin
+                hex_out = 11;
+                
+                reset = 0;
+                Ball_VX = 0;
+                Ball_VY = 0;
+                flag_motion_intial = 0;
+                power_counter = 1;
+                score_counter = 0;
+                
+                direction_counter = direction_counter_reg - 1;
+                
+                if (direction_counter < 0) 
+                    direction_counter = 0;
+            end
+            
+            s_start_sand_power:
+            begin
+                hex_out = 12;
+                
+                reset = 0;
+                Ball_VX = 0;
+                Ball_VY = 0;
+                flag_motion_intial = 0;
+                direction_counter = 6;
+                power_counter = 1;
+                score_counter = 0;
+                                
+            end
+            
+             s_start_sand_power_inc:
+            begin
+                hex_out = 13;
+                
+                reset = 0;
+                Ball_VX = 0;
+                Ball_VY = 0;
+                flag_motion_intial = 0;
+                direction_counter = 6;
+                score_counter = 0;
+                
+                power_counter = power_counter_reg + 1;
+                
+                if (power_counter > 3)
+                    power_counter = 3;
+                                
+            end
+            
+            s_start_sand_power_dec:
+            begin
+                hex_out = 14;
+                
+                reset = 0;
+                Ball_VX = 0;
+                Ball_VY = 0;
+                flag_motion_intial = 0;
+                direction_counter = 6;
+                score_counter = 0;
+                
+                power_counter = power_counter_reg - 1;
+                
+                if (power_counter < 1)
+                    power_counter = 1;
+                                
+            end
+            
+            s_start_sand_motion:
+            begin
+                hex_out = 15;
+                reset = 0;
+                flag_motion_intial = 1'b1;
+                
+                direction_counter = 6;
+                power_counter = 1;
+                
+                score_counter = score_counter_reg + 1;
+                
+                // change all Ball_VX and Ball_VY values
+                if(power_counter_reg == 1 && (direction_counter_reg == 6) )
+                begin 
+                    Ball_VX = 6;
+                    Ball_VY = 0;
+                end
+                
+                else if (power_counter_reg == 1 && (direction_counter_reg == 7) )
+                begin
+                    Ball_VX = 6;
+                    Ball_VY = 3;
+                end
+                
+                else if (power_counter_reg == 1 && (direction_counter_reg == 5) )
+                begin
+                    Ball_VX = 6;
+                    Ball_VY = -3;
+                end
+                
+                else if (power_counter_reg == 1 && (direction_counter_reg == 8) )
+                begin
+                    Ball_VX = 6;
+                    Ball_VY = 3;
+                end
+                
+                else if (power_counter_reg == 1 && (direction_counter_reg == 4) )
+                begin
+                    Ball_VX = 6;
+                    Ball_VY = -3;
+                end
+                
+                else if (power_counter_reg == 1 && (direction_counter_reg == 9) )
+                begin
+                    Ball_VX = 6;
+                    Ball_VY = 6;
+                end
+                
+                else if (power_counter_reg == 1 && (direction_counter_reg == 3) )
+                begin
+                    Ball_VX = 6;
+                    Ball_VY = -6;
+                end
+                
+                else if (power_counter_reg == 1 && (direction_counter_reg == 10) )
+                begin
+                    Ball_VX = 3;
+                    Ball_VY = 6;
+                end
+                
+                else if (power_counter_reg == 1 && (direction_counter_reg == 2) )
+                begin
+                    Ball_VX = 3;
+                    Ball_VY = -6;
+                end
+                
+                else if (power_counter_reg == 1 && (direction_counter_reg == 11) )
+                begin
+                    Ball_VX = 3;
+                    Ball_VY = 6;
+                end
+                
+                else if (power_counter_reg == 1 && (direction_counter_reg == 1) )
+                begin
+                    Ball_VX = 3;
+                    Ball_VY = -6;
+                end
+                
+                else if (power_counter_reg == 1 && (direction_counter_reg == 12) )
+                begin
+                    Ball_VX = 0;
+                    Ball_VY = 6;
+                end
+                
+                else if (power_counter_reg == 1 && (direction_counter_reg == 0) )
+                begin
+                    Ball_VX = 0;
+                    Ball_VY = -6;
+                end
+                
+                //
+                // power 2
+                //
+                
+               else if(power_counter_reg == 2 && (direction_counter_reg == 6) )
+                begin 
+                    Ball_VX = 9;
+                    Ball_VY = 0;
+                end
+                
+                else if (power_counter_reg == 2 && (direction_counter_reg == 7) )
+                begin
+                    Ball_VX = 9;
+                    Ball_VY = 3;
+                end
+                
+                else if (power_counter_reg == 2 && (direction_counter_reg == 5) )
+                begin
+                    Ball_VX = 9;
+                    Ball_VY = -3;
+                end
+                
+                else if (power_counter_reg == 2 && (direction_counter_reg == 8) )
+                begin
+                    Ball_VX = 9;
+                    Ball_VY = 6;
+                end
+                
+                else if (power_counter_reg == 2 && (direction_counter_reg == 4) )
+                begin
+                    Ball_VX = 9;
+                    Ball_VY = -6;
+                end
+                
+                else if (power_counter_reg == 2 && (direction_counter_reg == 9) )
+                begin
+                    Ball_VX = 6;
+                    Ball_VY = 6;
+                end
+                
+                else if (power_counter_reg == 2 && (direction_counter_reg == 3) )
+                begin
+                    Ball_VX = 6;
+                    Ball_VY = -6;
+                end
+                
+                else if (power_counter_reg == 2 && (direction_counter_reg == 10) )
+                begin
+                    Ball_VX = 6;
+                    Ball_VY = 9;
+                end
+                
+                else if (power_counter_reg == 2 && (direction_counter_reg == 2) )
+                begin
+                    Ball_VX = 6;
+                    Ball_VY = -9;
+                end
+                
+                else if (power_counter_reg == 2 && (direction_counter_reg == 11) )
+                begin
+                    Ball_VX = 3;
+                    Ball_VY = 9;
+                end
+                
+                else if (power_counter_reg == 2 && (direction_counter_reg == 1) )
+                begin
+                    Ball_VX = 3;
+                    Ball_VY = -9;
+                end
+                
+                else if (power_counter_reg == 2 && (direction_counter_reg == 12) )
+                begin
+                    Ball_VX = 0;
+                    Ball_VY = 9;
+                end
+                
+                else if (power_counter_reg == 2 && (direction_counter_reg == 0) )
+                begin
+                    Ball_VX = 0;
+                    Ball_VY = -9;
+                end
+                
+                //
+                // power 3
+                //
+                
+                else if(power_counter_reg == 3 && (direction_counter_reg == 6) )
+                begin 
+                    Ball_VX = 15;
+                    Ball_VY = 0;
+                end
+                
+                else if (power_counter_reg == 3 && (direction_counter_reg == 7) )
+                begin
+                    Ball_VX = 15;
+                    Ball_VY = 3;
+                end
+                
+                else if (power_counter_reg == 3 && (direction_counter_reg == 5) )
+                begin
+                    Ball_VX = 15;
+                    Ball_VY = -3;
+                end
+                
+                else if (power_counter_reg == 3 && (direction_counter_reg == 8) )
+                begin
+                    Ball_VX = 12;
+                    Ball_VY = 9;
+                end
+                
+                else if (power_counter_reg == 3 && (direction_counter_reg == 4) )
+                begin
+                    Ball_VX = 12;
+                    Ball_VY = -9;
+                end
+                
+                else if (power_counter_reg == 3 && (direction_counter_reg == 9) )
+                begin
+                    Ball_VX = 12;
+                    Ball_VY = 9;
+                end
+                
+                else if (power_counter_reg == 3 && (direction_counter_reg == 3) )
+                begin
+                    Ball_VX = 12;
+                    Ball_VY = -9;
+                end
+                
+                else if (power_counter_reg == 3 && (direction_counter_reg == 10) )
+                begin
+                    Ball_VX = 9;
+                    Ball_VY = 15;
+                end
+                
+                else if (power_counter_reg == 3 && (direction_counter_reg == 2) )
+                begin
+                    Ball_VX = 9;
+                    Ball_VY = -15;
+                end
+                
+                else if (power_counter_reg == 3 && (direction_counter_reg == 11) )
+                begin
+                    Ball_VX = 6;
+                    Ball_VY = 15;
+                end
+                
+                else if (power_counter_reg == 3 && (direction_counter_reg == 1) )
+                begin
+                    Ball_VX = 6;
+                    Ball_VY = -15;
+                end
+                
+                else if (power_counter_reg == 3 && (direction_counter_reg == 12) )
+                begin
+                    Ball_VX = 0;
+                    Ball_VY = 15;
+                end
+                
+                else if (power_counter_reg == 3 && (direction_counter_reg == 0) )
+                begin
+                    Ball_VX = 0;
+                    Ball_VY = -15;
+                end
+                
+                else
+                begin
+                    Ball_VX = 0;
+                    Ball_VY = 1;
+                end
+                
+            end
+             
+            s_check:
+            begin
+                hex_out = 16;
+                
+                reset = 0;
+                Ball_VX = 0;
+                Ball_VY = 0;
+                flag_motion_intial = 0;
+                direction_counter = 6;
+                power_counter = 1;
+                score_counter = 0;
+            end
+            
+            s_done:
+            begin
+                hex_out = 17;
+                
+                reset = 0;
+                flag_motion_intial = 0;
+                Ball_VX = 0;
+                Ball_VY = 0;
+                direction_counter = 6;
+                power_counter = 1;
+                score_counter = 0;
+            end
+            
+            s_start_screen:
+            begin
+               // hex_screen = 1;
+                hex_out = 18;
+                
+                reset = 1;
+                flag_motion_intial = 0;
+                Ball_VX = 0;
+                Ball_VY = 0;
+                direction_counter = 6;
+                power_counter = 1;
+                score_counter = 0;
+            end
+            
+            s_end_screen:
+            begin
+               // hex_screen = 2;
+                hex_out = 19;
+                
+                reset = 1;
+                flag_motion_intial = 0;
+                Ball_VX = 0;
+                Ball_VY = 0;
+                direction_counter = 6;
+                power_counter = 1;
+                score_counter = 0;
+            end
+            
+//            s_lost_screen:
+//            begin
+//             //   hex_screen = 3;
+//                hex_out = 20;
+                
+//                reset = 1;
+//                flag_motion_intial = 0;
+//                Ball_VX = 0;
+//                Ball_VY = 0;
+//                direction_counter = 6;
+//                power_counter = 1;
+//                score_counter = 0;
+//            end
+            
+			default:  //default case, can also have default assignments for Ld_A and Ld_B before case
+			begin 
+			 Ball_VX = 0;
+			 Ball_VY = 0;
+			 flag_motion_intial = 0;
+			 direction_counter = 6;
+             power_counter = 1;
+             reset = 0;
+             hex_out = 0;
+             score_counter = 0;
+			end
+			
+		endcase
+	end
+
+    always_comb  // for determining next state
+    begin
+    
+    next_state = curr_state;
+    
+    unique case(curr_state) 
+    
+          s_start_screen:
+          begin
+            if (keycode == 8'h28)
+            begin
+                next_state = s_start_screen_wait;
+            end
+          end
+          
+          s_start_screen_wait:
+          begin
+            if (keycode != 8'h28)
+                next_state = s_restart;
+          end
+          
+		  s_restart :
+		  begin
+		      if (keycode == 8'h28)
+		      begin
+		          next_state = s_restart_wait;     //s_start_pos;
+		      end
+		  end
+		  
+		  s_restart_wait:
+		  begin
+		      if (keycode != 8'h28)
+		          next_state = s_start_pos;
+		  end
+		  
+		  s_start_pos:
+		  begin
+		      if (keycode == 8'h28)
+		          next_state = s_start_pos_wait;//s_start_power;
+		      else if (keycode == 8'h04)
+		          next_state = s_start_pos_hold2;
+		      else if (keycode == 8'h07)
+		          next_state = s_start_pos_hold1;
+		  end
+		  
+		  s_start_pos_hold1:
+		  begin
+		      if (keycode == 0)
+		          next_state = s_start_pos_inc;
+		  end
+
+          s_start_pos_inc:
+          begin
+                next_state = s_start_pos;
+          end
+          
+          s_start_pos_hold2:
+		  begin
+		      if (keycode == 0)
+		          next_state = s_start_pos_dec;
+		  end
+
+          s_start_pos_dec:
+          begin
+                next_state = s_start_pos;
+          end
+		  
+		  s_start_pos_wait:
+		  begin
+		      if (keycode != 8'h28)
+		          next_state = s_start_power;
+		  end
+		  
+		  s_start_power:
+		  begin
+		      if (keycode == 8'h28)
+		          next_state = s_start_power_wait;
+		      else if (keycode == 8'h51)
+		          next_state = s_start_power_hold1;
+		      else if (keycode == 8'h52)
+		          next_state = s_start_power_hold2;
+		  end
+		  
+		  s_start_power_hold1:
+		  begin
+		      if (keycode == 0)
+		          next_state = s_start_power_dec;
+		  end
+		  
+		  s_start_power_dec:
+          begin
+                next_state = s_start_power;
+          end
+          
+          s_start_power_hold2:
+		  begin
+		      if (keycode == 0)
+		          next_state = s_start_power_inc;
+		  end
+		  
+		  s_start_power_inc:
+          begin
+                next_state = s_start_power;
+          end
+		  
+		  s_start_power_wait:
+		  begin
+		      if (keycode != 8'h28)
+		          next_state = s_motion1;
+		  end
+		  
+		  s_motion1:
+		  begin
+              next_state = s_wait_for_motion_to_stop_buffer;
+		  end
+		  
+		  s_wait_for_motion_to_stop_buffer:
+		  begin
+		      next_state = s_wait_for_motion_to_stop;
+		  end
+		  
+		  s_wait_for_motion_to_stop:
+		  begin
+		      if (flag_motion_inwater_in == 1'b1)
+		          next_state = s_restart;
+		      else 
+		      begin
+		       if (flag_stop_in == 1'b1)
+		          next_state = s_check;
+		      end
+
+               
+		  end
+		  
+//		  s_check_buffer:
+//		  begin
+//		      next_state = s_check;
+//		  end
+		  
+		  s_check:
+		  begin
+		      if (score_counter_reg == 15)
+		          next_state = s_end_screen; //s_lost_screen;
+		      else if (flag_motion_ingrass_in == 1'b1) //flag_motion_ingrass
+		          next_state = s_start_pos;
+		      else if (flag_motion_inhole_in == 1'b1) //flag_motion_inhole
+		          next_state = s_done;
+		      else if (flag_motion_insand_in == 1'b1) //flag_motion_insand
+		          next_state = s_start_sand_pos;
+		  end
+		  
+		  s_done: 
+		  begin
+		      next_state = s_end_screen;
+		  end
+		  
+		 // s_end_screen: next_state = s_end_screen;
+		 // CHANGE 2 to replay game
+		 s_end_screen:
+		 begin
+		      if (keycode == 8'h28)
+		      begin
+		          next_state = s_end_screen_wait ;    //s_start_screen;    
+		      end
+		  end
+		  
+		 // s_lost_screen: next_state = s_lost_screen;
+//		 s_lost_screen:
+//		 begin
+//		      if (keycode == 8'h28)
+//		      begin
+//		          next_state = s_end_screen_wait ;    //s_start_screen;    
+//		      end
+//		  end
+		  
+		 s_end_screen_wait:
+		 begin
+		      if (keycode != 8'h28)
+		          next_state = s_start_screen;
+		  end
+		  
+		  s_start_sand_pos:
+		  begin
+		      if (keycode == 8'h28)
+		          next_state = s_start_sand_pos_wait;
+		      else if (keycode == 8'h04)
+		          next_state = s_start_sand_pos_hold1;
+		      else if (keycode == 8'h07)
+		          next_state = s_start_sand_pos_hold2;
+		  end
+		  
+		  s_start_sand_pos_hold1:
+		  begin
+		      if (keycode == 0)
+		          next_state = s_start_sand_pos_dec;
+		  end
+		  
+		  s_start_sand_pos_dec:
+		  begin
+		      next_state = s_start_sand_pos;
+		  end
+		  
+		  s_start_sand_pos_hold2:
+		  begin
+		      if (keycode == 0)
+		          next_state = s_start_sand_pos_inc;
+		  end
+		  
+		  s_start_sand_pos_inc:
+		  begin
+		      next_state = s_start_sand_pos;
+		  end
+		  
+		  s_start_sand_pos_wait:
+		  begin
+		      if (keycode != 8'h28)
+		          next_state = s_start_sand_power;
+		  end
+		  
+		  s_start_sand_power:
+		  begin
+		      if (keycode == 8'h28)
+		          next_state = s_start_sand_power_wait;
+		      else if (keycode == 8'h51)
+		          next_state = s_start_sand_power_hold1;
+		      else if (keycode == 8'h52)
+		          next_state = s_start_sand_power_hold2;
+		  end
+		  
+		  s_start_sand_power_hold1:
+		  begin
+		      if (keycode == 0)
+		          next_state = s_start_sand_power_dec;
+		  end
+		  
+		  s_start_sand_power_dec:
+          begin
+                next_state = s_start_sand_power;
+          end
+          
+          s_start_sand_power_hold2:
+		  begin
+		      if (keycode == 0)
+		          next_state = s_start_sand_power_inc;
+		  end
+		  
+		  s_start_sand_power_inc:
+          begin
+                next_state = s_start_sand_power;
+          end
+		  
+		  s_start_sand_power_wait:
+		  begin
+		      if (keycode != 8'h28)
+		          next_state = s_start_sand_motion;
+		  end
+		  	  
+		  s_start_sand_motion:
+		  begin
+		    next_state = s_wait_for_motion_to_stop;
+		  end
+		endcase
+    end
+ 
+
+assign hex_out_vx = Ball_VX[3:0];
+assign hex_out_vy = Ball_VY[3:0];
+assign hex_direction = direction_counter_reg[3:0];
+assign hex_power = power_counter_reg;
+assign hex_score = score_counter_reg;
+
+assign reset_out = reset || reset_ah_in;
+assign flag_motion_intial_out = flag_motion_intial; 
+ 
+endmodule
