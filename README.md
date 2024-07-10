@@ -1,4 +1,5 @@
 **Introduction**
+
 For our final project we created a Mini golf like game using the FPGA hardware
 resources. Our game was entirely playable on a USB keyboard connected to the fpga using the
 MAX3421E USB host controller. Our game consisted of a start screen like any game, and we
