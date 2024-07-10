@@ -46,6 +46,7 @@ kept it as a surprise, we turned the collisions off and let the ball wrap and mo
 opposite wall making it harder for them to play.
 
 
+
 The final lab project was an interesting opportunity for us develop a basic version of a
 game designed by us. We gained a deep understanding of how the MicroBlaze and FPGA work
 together to enable dynamic projects. Over the two weeks we spent on this project, we learned a
