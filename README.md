@@ -18,6 +18,7 @@ The game would end either if the ball entered the hole or if the number of shots
 14.
 
 **List of Features**
+
 **Background & Display features:** The background was sourced online and using the Image to
 COE tool we created a ROM file and uploaded into the BRAM. We accessed this map through
 its RGB values pixel by pixel using DrawY and DrawX. The same process was done for the start
