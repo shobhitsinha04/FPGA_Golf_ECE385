@@ -17,6 +17,8 @@ would be set in motion and based on any traps like sand or water the gameplay wo
 The game would end either if the ball entered the hole or if the number of shots taken exceeded
 14.
 
+------------------------------------------------------------------------------------------------------
+
 **List of Features**
 
 **Background & Display features:** The background was sourced online and using the Image to
@@ -45,7 +47,7 @@ added boundary collisions for the right and down boundaries of the screen. For t
 kept it as a surprise, we turned the collisions off and let the ball wrap and move from the
 opposite wall making it harder for them to play.
 
-
+------------------------------------------------------------------------------------------------------
 
 The final lab project was an interesting opportunity for us develop a basic version of a
 game designed by us. We gained a deep understanding of how the MicroBlaze and FPGA work
